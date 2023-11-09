@@ -336,7 +336,7 @@ public class ClassOrganizer {
     }
 
     private static Map<String, Map<MemberReference, Integer>> createAccessMap(Map<String, ClassReader> classes) {
-        return classes.entrySet().stream().collect(Collectors.toMap(
+        return classes.entrySet().parallelStream().collect(Collectors.toMap(
             Map.Entry::getKey,
             entry -> {
                 final Map<MemberReference, Integer> result = new HashMap<>();

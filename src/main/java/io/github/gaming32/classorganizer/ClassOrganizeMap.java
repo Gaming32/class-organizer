@@ -4,7 +4,7 @@ import java.util.*;
 
 public class ClassOrganizeMap {
     private final Map<String, Integer> classToPackage = new HashMap<>();
-    private final Map<Integer, Set<String>> packageToClasses = new HashMap<>();
+    private final NavigableMap<Integer, Set<String>> packageToClasses = new TreeMap<>();
 
     public ClassOrganizeMap(Map<String, Integer> classToPackage) {
         this.classToPackage.putAll(classToPackage);
@@ -54,6 +54,18 @@ public class ClassOrganizeMap {
         return classes != null ? Collections.unmodifiableSet(classes) : Collections.emptySet();
     }
 
+    public NavigableSet<Integer> getPackagesIds() {
+        return Collections.unmodifiableNavigableSet(packageToClasses.navigableKeySet());
+    }
+
+    public NavigableMap<Integer, Set<String>> getPackages() {
+        return Collections.unmodifiableNavigableMap(packageToClasses);
+    }
+
+    public Set<String> getAllClasses() {
+        return Collections.unmodifiableSet(classToPackage.keySet());
+    }
+
     public boolean containsClass(String clazz) {
         return classToPackage.containsKey(clazz);
     }
@@ -100,6 +112,10 @@ public class ClassOrganizeMap {
         return Collections.unmodifiableSet(packageToClasses.keySet());
     }
 
+    /**
+     * Compacts the map such that the package numbers are 0 to {@code packageCount()}.
+     * @return A compacted copy.
+     */
     public ClassOrganizeMap compacted() {
         final Map<Integer, Integer> remap = new HashMap<>();
         for (final Integer pkg : packageToClasses.keySet()) {
@@ -114,5 +130,55 @@ public class ClassOrganizeMap {
             result.packageToClasses.put(remapped, new HashSet<>(entry.getValue()));
         }
         return result;
+    }
+
+    /**
+     * Puts classes in packages by themselves into package 0.
+     * @return {@code this} for chaining. It is useful to do {@code map.singlePackagesToZero().compacted()}.
+     */
+    public ClassOrganizeMap singlePackagesToZero() {
+        if (classToPackage.isEmpty()) {
+            return this;
+        }
+
+        boolean foundAny = false;
+        for (final Set<String> classes : packageToClasses.values()) {
+            if (classes.size() == 1) {
+                foundAny = true;
+                break;
+            }
+        }
+        if (!foundAny) {
+            return this;
+        }
+
+        Set<String> packageZero = packageToClasses.computeIfAbsent(0, k -> new HashSet<>());
+        if (!packageZero.isEmpty()) {
+            final List<Integer> packages = new ArrayList<>(packageToClasses.keySet());
+            final int increment = 1 - packages.get(0);
+            Collections.reverse(packages);
+            for (final Integer packageId : packages) {
+                final Integer newPackage = packageId + increment;
+                final Set<String> classes = packageToClasses.remove(packageId);
+                packageToClasses.put(newPackage, classes);
+                for (final String clazz : classes) {
+                    classToPackage.put(clazz, newPackage);
+                }
+            }
+            packageZero = packageToClasses.computeIfAbsent(0, k -> new HashSet<>());
+        }
+
+        final var it = packageToClasses.entrySet().iterator();
+        while (it.hasNext()) {
+            final var entry = it.next();
+            if (entry.getValue().size() == 1 && entry.getKey() != 0) {
+                final String clazz = entry.getValue().iterator().next();
+                packageZero.add(clazz);
+                classToPackage.put(clazz, 0);
+                it.remove();
+            }
+        }
+
+        return this;
     }
 }
